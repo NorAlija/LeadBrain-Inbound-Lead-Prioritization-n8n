@@ -1,0 +1,463 @@
+{
+  "name": "AI Lead Qualification for Agencies",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-score",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "d4496945-d67f-4b03-9920-d3c974df7813",
+      "name": "Webhook",
+      "webhookId": "38b64b41-a3ba-41e8-8d53-691a09f8dba6"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b50e2ede-1285-482c-a572-46885c59e18a",
+              "name": "name",
+              "value": "={{ $json.body.name || \"\"}}",
+              "type": "string"
+            },
+            {
+              "id": "64564c7e-42bd-4829-9d87-97697b4c8c98",
+              "name": "company",
+              "value": "={{ $json.body.company || \"\"}}",
+              "type": "string"
+            },
+            {
+              "id": "77bd176f-bf5c-407d-8cbc-1eb456eecf44",
+              "name": "website",
+              "value": "={{ $json.body.website || \"\"}}",
+              "type": "string"
+            },
+            {
+              "id": "8f6209b9-da39-4662-be9b-978c92caccf0",
+              "name": "message",
+              "value": "={{ $json.body.message || \"\"}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "c2838053-44c9-4159-969b-e1226d9df0a8",
+      "name": "Normalaize input"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Name: {{$json.name}}\nCompany: {{$json.company}}\nWebsite: {{$json.website}}\nLead message: {{$json.message}}\n",
+        "options": {
+          "systemMessage": "=You are an AI lead qualification engine for a digital marketing agency.\n\nScore inbound leads from 0 to 100 based on:\n- Buying intent\n- Budget potential\n- Company maturity\n- Fit for a performance marketing agency\n- Clarity of request\n\nRules:\n90–100 = extremely high intent, clear budget, ready to buy\n70–89 = strong potential, good fit\n40–69 = moderate, unclear budget or early stage\n0–39 = low intent, student/job seeker/spam/very small business\n\nReturn ONLY valid JSON using this schema:\n{\n  \"score\": number,\n  \"tier\": \"High\" | \"Medium\" | \"Low\",\n  \"reasoning\": [\"...\", \"...\", \"...\"],\n  \"recommended_action\": \"...\"\n}\nNo extra text.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        320,
+        -208
+      ],
+      "id": "51c96c08-ee48-43b9-acdd-05a0a0b0ef43",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        320,
+        112
+      ],
+      "id": "af9ee69e-9778-4efe-bcd4-1284a5ebfdbf",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "2cxo5B8v2AGNW0Xy",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.output;\n\nif (typeof raw !== \"string\" || raw.trim().length === 0) {\n  throw new Error(\"AI output is empty or not a string. Expected $json.output to contain JSON text.\");\n}\n\n// raw looks like a JSON string with \\n escapes, but JSON.parse can still handle it\nlet s = raw.trim();\n\n// Remove markdown fences just in case\ns = s.replace(/^```json\\s*/i, \"\").replace(/^```\\s*/i, \"\").replace(/```$/i, \"\").trim();\n\n// Try parse directly\ntry {\n  return [{ json: JSON.parse(s) }];\n} catch (e) {\n  // Fallback: extract JSON object if extra text exists\n  const match = s.match(/\\{[\\s\\S]*\\}/);\n  if (!match) {\n    throw new Error(\"No JSON object found in AI output. Raw: \" + s.slice(0, 200));\n  }\n  return [{ json: JSON.parse(match[0]) }];\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        -208
+      ],
+      "id": "238a9674-c60d-4477-92c7-050284c7069e",
+      "name": "JSON Parse"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"score\": \"={{$json.score}}\",\n  \"tier\": \"={{$json.tier}}\",\n  \"reasoning\": \"={{$json.reasoning}}\",\n  \"recommended_action\": \"={{$json.recommended_action}}\"\n}\n",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "=Access-Control-Allow-Origin",
+                "value": "=*"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1424,
+        -16
+      ],
+      "id": "1d4511cc-8cb3-466e-9284-f4b272d6be05",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        560,
+        -16
+      ],
+      "id": "8c072ae6-e1bf-4803-a6eb-cf083baaf5bd",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "AI LeadBrain",
+          "cachedResultUrl": "yourcachedresulturl"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "yourcachedresulturl"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "name": "={{ $('Merge').item.json.name }}",
+            "company": "={{ $('Merge').item.json.company }}",
+            "message": "={{ $('Merge').item.json.message }}",
+            "score": "={{ $('Merge').item.json.score }}",
+            "tier": "={{ $('Merge').item.json.tier }}",
+            "recommended action": "={{ $('Merge').item.json.recommended_action }}",
+            "Reasoning": "={{ $('Merge').item.json.reasoning.join(\" | \") }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tier",
+              "displayName": "tier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "recommended action",
+              "displayName": "recommended action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reasoning",
+              "displayName": "Reasoning",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contacted",
+              "displayName": "contacted",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Contacted",
+              "displayName": "Contacted",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        800,
+        -16
+      ],
+      "id": "da542872-16fd-4d57-b0b1-6726d5058a07",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "yogvWs11uUb1uzZo",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "your@email.com",
+        "subject": "={{ $json.score >= 70 ? \"🔥 HIGH LEAD – \" + ($json.company || \"Unknown\") \n  : $json.score >= 40 ? \"🟡 MEDIUM LEAD – \" + ($json.company || \"Unknown\") \n  : \"⚪ LOW LEAD – \" + ($json.company || \"Unknown\") }}\n",
+        "emailType": "text",
+        "message": "=={{ \n\"New lead scored by LeadBrain\\n\\n\" +\n\"Name: \" + ($node[\"Merge\"].json.name || \"\") + \"\\n\" +\n\"Company: \" + ($node[\"Merge\"].json.company || \"\") + \"\\n\" +\n\"Website: \" + ($node[\"Merge\"].json.website || \"\") + \"\\n\\n\" +\n\"Message:\\n\" + ($node[\"Merge\"].json.message || \"\") + \"\\n\\n\" +\n\"Score: \" + ($node[\"Merge\"].json.score ?? \"\") + \" (\" + ($node[\"Merge\"].json.tier || \"\") + \")\\n\\n\" +\n\"Reasoning:\\n- \" + (($node[\"Merge\"].json.reasoning || []).join(\"\\n- \")) + \"\\n\\n\" +\n\"Recommended action:\\n\" + ($node[\"Merge\"].json.recommended_action || \"\")\n}}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        -16
+      ],
+      "id": "c6b15dca-6dd0-4763-bb63-416ec151a853",
+      "name": "Send a message",
+      "webhookId": "a4503fc9-1f8b-48d8-b7f5-794e375bd7eb",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "lLuaaVYy4gtM3h38",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": "={{ \n  $node[\"Merge\"].json.score >= 70 \n    ? \"Label_5797290659500960503\"\n    : $node[\"Merge\"].json.score >= 40 \n      ? \"Label_299675642852669797\" \n      : \"Label_6574644109790651207\" \n}}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1232,
+        -16
+      ],
+      "id": "352c8795-183c-45be-816f-5a7fca6f4284",
+      "name": "Add label to message",
+      "webhookId": "faf6291e-56de-411f-b0eb-2435835e74e1",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "lLuaaVYy4gtM3h38",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalaize input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalaize input": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "JSON Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JSON Parse": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Add label to message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add label to message": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "eac849ae-d34d-4b3e-9089-c54ec90aa329",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8f6659828b5563983053c18d306a415776f9e363ffb42a68d0b9682ed34f943f"
+  },
+  "id": "o8rfjc-0Bu8lnCOFbbriO",
+  "tags": []
+}
